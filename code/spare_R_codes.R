@@ -221,3 +221,99 @@ lines(density(sample), lty=2, lwd=2)
 
 
 
+
+
+
+height <- n_bin_lat
+width <- n_bin_lng
+n_cat <- nc_list$n_cat
+lng_gap <- nc_list$gap[1]
+lat_gap <- nc_list$gap[2]
+
+# Distance discount rate
+r_lng <- 10^3
+r_lat <- 10^3
+
+# exclude self?
+exclude_self <- TRUE
+
+# Prepare the batches used to calculate the
+# number of blocks relative to each lng and lat bin.
+
+lng_batch <- block_lng_batch(n_bin_lat,n_bin_lng)
+lat_batch <- block_lng_batch(n_bin_lat,n_bin_lng)
+
+if(exclude_self){
+  self_lng <- ifelse(lng_batch == 0,1,0)
+  self_lat <- ifelse(lat_batch == 0,1,0)
+}
+
+# Transform to compute hrizontal and vertical distances.
+
+lng_batch <- lng_gap * lng_batch
+lat_batch <- lat_gap * lat_batch
+
+# Scale using the natural exponent.
+# Subtract self from the calculation if required.
+
+lng_batch <- exp(-r_lng * lng_batch)
+lat_batch <- exp(-r_lat * lat_batch)
+
+if(exclude_self){
+  lng_batch <- lng_batch - self_lng
+  lat_batch <- lat_batch - self_lat
+}
+
+# Obtain adjusted neighbourhood characteristics
+# for lng and lat.
+
+nc_frame <- nc_list$nc_frame[,(1:n_cat+5)]
+nc_frame <- as.matrix(nc_frame)
+nc_lng_adj <- lng_batch %*% nc_frame
+nc_lat_adj <- lat_batch %*% nc_frame
+
+# Compute the adjusted nc as a weighted average 
+# of nc_lng_adj and nc_lat_adj.
+
+weight_lng <- 0.5
+weight_lat <- 1 - weight_lng
+
+nc_adj <-  apply((nc_list$bin_map),1,function(row) 
+  weight_lng * nc_lng_adj[row[2],] +
+    weight_lat * nc_lat_adj[row[3],])
+nc_adj <- t(nc_adj)
+nc_adj <- as.data.frame(nc_adj)
+nc_adj <- cbind(nc_list$bin_map,nc_adj)
+
+
+
+
+
+
+
+
+
+# Plot neighbourhood characteristics
+plot_nc <- ggplot(data = nc_adj,
+                  aes(x=lng_bin_ID,y=lat_bin_ID)) + 
+  geom_tile(aes(fill = V2),colour = "white") + 
+  scale_fill_gradient(low = "white",high = "steelblue")
+plot_nc
+
+
+
+
+# Plot adjusted neighbourhood characteristics
+plot_nc <- ggplot(data = nc_sample,aes(x=n_bin_lng,
+                                       y=n_bin_lat)) + 
+  geom_point(aes(colour = V1, shape = factor(cat_id)),size=0.5) +
+  scale_colour_gradient(low = "white",high = "red") +
+  scale_shape_manual(values=seq(0,length(unique(dataset$label))))
+# plot_nc
+
+# Plot neighbourhood characteristics percentages
+plot_nc_per <- ggplot(data = sample_dataset,aes(x=lng,y=lat)) + 
+  geom_point(aes(colour = nc_9_per, shape = factor(cat_id)),size=0.5) +
+  scale_colour_gradient(low = "white",high = "red") +
+  scale_shape_manual(values=seq(0,length(unique(dataset$label))))
+# plot_nc_per

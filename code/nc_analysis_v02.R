@@ -1,10 +1,22 @@
-# dataset the functions for computation
-code_dir <- 'E:/BB101/_專題/real_estate/code/'
+# prepare the functions for computation
+code_dir <- 'C:/Users/Will/Documents/資策會/_專題/real_estate/code/'
 source(paste(code_dir,"univ_fn.R",sep = ""))
 source(paste(code_dir,"nc_bins.R",sep = ""))
 
-# Import dependencies
+# Download and install dependencies
+# install.packages("pryr")           # memory usage
+# install.packages("ggplot2")        # visualization
+# install.packages("pscl")           # model diagnostics
+# install.packages("ROCR")           # classifier performance evaluation
+# install.packages("caret")          # training and evaluating models
+# install.packages("nnet")           # multinomial logistic regression
+# install.packages("GDAtools")       # Gaussian Discriminant Analysis
+# install.packages("geosphere")      # geodistances
+# install.packages("RMySQL")         # MySQL connection
+# install.packages("RevoUtilsMath")  # multi-threading
+# install.packages("ash")
 
+# Import dependencies
 library(pryr)           # memory usage
 library(ggplot2)        # visualization
 library(pscl)           # model diagnostics
@@ -23,50 +35,61 @@ getMKLthreads()
 memory.size(max=32710)
 memory.limit()
 
+
 # Connect to MySQL
-db_name <- 'house'
-conn <- dbConnect(MySQL(), user='', password='', 
-                 dbname=db_name, host='')
+# db_name <- 'house'
+# conn <- dbConnect(MySQL(), user='', password='',
+#                  dbname=db_name, host='')
 
 # Encoding
 # enc_query <- "SET NAMES udf8;"
-enc_query <- "SET NAMES big5;"
-dbSendQuery(conn,enc_query)
+# enc_query <- "SET NAMES big5;"
+# dbSendQuery(conn,enc_query)
 
 # Table queries
-dataset_envir <- dbGetQuery(conn,
-                            " SELECT ID, Area, label, lng, lat
-                            FROM envir 
-                            WHERE 
-                            (City = \"Taipei City\"
-                            AND lng BETWEEN 121.45 AND 121.7 
-                            AND lat BETWEEN 24.9 AND 25.2)
-                            OR
-                            (label = \"mrt\")
-                            ;")
-dataset_rental <- dbGetQuery(conn,
-                             "SELECT url, Area,label, lng, lat
-                             FROM rental
-                             WHERE 
-                             lng BETWEEN 121.45 AND 121.7
-                             AND lat BETWEEN 24.9 AND 25.2
-                             ;")
+# dataset_envir <- dbGetQuery(conn,
+#                             " SELECT ID, Area, label, lng, lat
+#                             FROM envir
+#                             WHERE
+#                             (City = \"Taipei City\"
+#                             AND lng BETWEEN 121.45 AND 121.7
+#                             AND lat BETWEEN 24.9 AND 25.2)
+#                             OR
+#                             (label = \"mrt\")
+#                             ;")
+# dataset_rental <- dbGetQuery(conn,
+#                              "SELECT url, Area,label, lng, lat
+#                              FROM rental
+#                              WHERE
+#                              lng BETWEEN 121.45 AND 121.7
+#                              AND lat BETWEEN 24.9 AND 25.2
+#                              ;")
 
-colnames(dataset_rental)[1] <- "ID"
-dataset <- rbind(dataset_rental,dataset_envir)
+# colnames(dataset_rental)[1] <- "ID"
+# dataset <- rbind(dataset_rental,dataset_envir)
 
 # longitude conversion for computation
-dataset$lng_mod <- dataset$lng - 90
-dataset$lat_mod <- dataset$lat
+# dataset$lng_mod <- dataset$lng - 90
+# dataset$lat_mod <- dataset$lat
 
 # Add all necessary columns
-bi_labels <- c("store")
-bi_IDs <- c(1)
-multi_labels <- get_unique_cats(dataset$label)
-multi_IDs <- 1:length(multi_labels)
-binary <- apply_cat_id(dataset$label,bi_labels,bi_IDs)
-cat_id <- apply_cat_id(dataset$label,multi_labels,multi_IDs)
-dataset <- cbind(dataset,binary,cat_id)
+# bi_labels <- c("store")
+# bi_IDs <- c(1)
+# multi_labels <- get_unique_cats(dataset$label)
+# multi_IDs <- 1:length(multi_labels)
+# binary <- apply_cat_id(dataset$label,bi_labels,bi_IDs)
+# cat_id <- apply_cat_id(dataset$label,multi_labels,multi_IDs)
+# dataset <- cbind(dataset,binary,cat_id)
+
+# Load data from localhost if applicable.
+setwd("C:/Users/Will/Documents/資策會/_專題/real_estate/data")
+dataset <- read.csv(file="nc_dataset.csv",header=TRUE,
+                    stringsAsFactors = FALSE)
+
+summary(dataset)
+
+# write.csv(dataset,file="nc_dataset.csv",row.names=FALSE)
+
 
 # Plot dataset
 plot_dataset <- ggplot(data = dataset,aes(x=lng,y=lat)) + 
@@ -74,7 +97,7 @@ plot_dataset <- ggplot(data = dataset,aes(x=lng,y=lat)) +
   scale_shape_manual(values=seq(0,length(unique(dataset$label))))
 plot_dataset
 
-plot_subset <- ggplot(data = subset(dataset,label=="mrt"),aes(x=lng,y=lat)) + 
+plot_subset <- ggplot(data = subset(dataset,label=="green"),aes(x=lng,y=lat)) + 
   geom_point(aes(colour = factor(label), shape = factor(label)),size=0.5) +
   scale_shape_manual(values=seq(0,length(unique(dataset$label))))
 plot_subset
@@ -83,12 +106,13 @@ plot_subset
 
 ##########
 # Part 2: generate the neighbourhood characteristics data.frame
-source(paste(code_dir,"nc_bins.R",sep = ""))
+setwd("C:/Users/Will/Documents/資策會/_專題/real_estate/code")
+source("nc_bins.R")
 
 # specify the level of refinement.
 
-n_bin_lng <- 20
-n_bin_lat <- 20
+n_bin_lng <- 100
+n_bin_lat <- n_bin_lng
 
 nc_list_start_time <- Sys.time()
 nc_list <- get_nc_list(dataset,n_bin_lng,n_bin_lat,percent=FALSE)
@@ -101,61 +125,39 @@ object_size(nc_list)
 mem_used()
 
 
-# plot nc_list
+# For the j-th lng_bin and i-th lat_bin and given integer n,
+# generate vectors that represent the number of
+# bins away from bin (i,j).
+
+nc_adj_start_time <- Sys.time()
+nc_adj <- get_nc_adj(nc_list,n_bin_lng,n_bin_lat,
+                     r_lng=10^3,r_lat=10^3,
+                     exclude_self=TRUE, weight=0.5)
+nc_adj_end_time <- Sys.time()
+nc_adj_time_taken <- nc_adj_end_time - nc_adj_start_time
+
+summary(nc_adj)
+nc_adj_time_taken
+object_size(nc_adj)
+mem_used()
+
 
 # Plot neighbourhood characteristics
-plot_nc <- ggplot(data = nc_list$nc_frame,aes(x=lng_bin_ID,y=lat_bin_ID)) + 
-  geom_tile(aes(fill = NC_H),colour = "white") + 
+plot_nc_frame <- ggplot(data = nc_list$nc_frame,
+                        aes(x=lng_bin_ID,y=lat_bin_ID)) + 
+  geom_tile(aes(fill = NC_green),colour = "white") + 
   scale_fill_gradient(low = "white",high = "steelblue")
-plot_nc
+# plot_nc_frame
 
-
-
-
-
-
-
-
-
-
-
-
-
-# Percentages
-if(ncol(nc_mat) > 1){
-  nc_mat_per <- (apply(nc_mat,2,function(e) e / sum(e)))
-  colnames(nc_mat_per) <- paste(c(colnames(nc_mat)),"per",sep = "_")
-}
-
-
-# Bind nc_mat to dataset for analysis
-sample_dataset <- cbind(sample_dataset,nc_mat)
-sample_dataset <- cbind(sample_dataset,nc_mat_per)
-summary(sample_dataset)
-
-
-# Plot sample dataset
-plot_sample <- ggplot(data = sample_dataset,aes(x=lng,y=lat)) + 
-  geom_point(aes(colour = factor(cat_id),shape = factor(cat_id)),size=0.5) +
-  scale_shape_manual(values=seq(0,length(unique(sample_dataset$label))))
-# plot_sample
-
-# Plot neighbourhood characteristics
-plot_nc <- ggplot(data = sample_dataset,aes(x=lng,y=lat)) + 
-  geom_point(aes(colour = nc_9, shape = factor(cat_id)),size=0.5) +
-  scale_colour_gradient(low = "white",high = "red") +
-  scale_shape_manual(values=seq(0,length(unique(dataset$label))))
-# plot_nc
-
-# Plot neighbourhood characteristics percentages
-plot_nc_per <- ggplot(data = sample_dataset,aes(x=lng,y=lat)) + 
-  geom_point(aes(colour = nc_9_per, shape = factor(cat_id)),size=0.5) +
-  scale_colour_gradient(low = "white",high = "red") +
-  scale_shape_manual(values=seq(0,length(unique(dataset$label))))
-# plot_nc_per
+# Plot adjusted neighbourhood characteristics
+plot_nc_adj <- ggplot(data = nc_adj,
+                        aes(x=lng_bin_ID,y=lat_bin_ID)) + 
+  geom_tile(aes(fill = NC_green),colour = "white") + 
+  scale_fill_gradient(low = "white",high = "steelblue")
+# plot_nc_adj
 
 # Juxtapose all lng-lat plots
-multiplot(plot_sample, plot_nc, plot_nc_per, cols=2)
+multiplot(plot_nc_frame, plot_nc_adj, cols=2)
 
 
 
