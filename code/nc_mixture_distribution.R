@@ -27,8 +27,8 @@ memory.limit()
 
 # Connect to MySQL
 db_name <- 'house'
-conn <- dbConnect(MySQL(), user='yen', password='1234', 
-                  dbname=db_name, host='10.120.37.114')
+conn <- dbConnect(MySQL(), user='', password='', 
+                  dbname=db_name, host='')
 
 # Encoding
 # enc_query <- "SET NAMES udf8;"

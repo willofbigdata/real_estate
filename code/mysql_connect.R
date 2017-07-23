@@ -8,8 +8,8 @@ library(RMySQL)
 # Connecting to MySQL:
 # Once the RMySQL library is installed create a database connection object.
 
-conn <- dbConnect(MySQL(), user='yen', password='1234', 
-                 dbname='stdid', host='10.120.37.114')
+conn <- dbConnect(MySQL(), user='', password='', 
+                 dbname='', host='')
 
 # SHOW TABLES
 table_list <- dbListTables(conn)
